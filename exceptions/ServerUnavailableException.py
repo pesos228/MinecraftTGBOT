@@ -1,0 +1,2 @@
+class ServerUnavailableException(Exception):
+    pass

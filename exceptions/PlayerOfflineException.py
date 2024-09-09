@@ -1,0 +1,2 @@
+class PlayerOfflineException(Exception):
+    pass

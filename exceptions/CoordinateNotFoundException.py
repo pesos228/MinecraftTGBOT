@@ -1,0 +1,2 @@
+class CoordinateNotFoundException(Exception):
+    pass
