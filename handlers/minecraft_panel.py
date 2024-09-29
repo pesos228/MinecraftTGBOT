@@ -7,7 +7,6 @@ from aiogram import types
 from mcrcon import MCRcon
 from aiogram import Bot
 
-from MinecraftBot import MinecraftBot
 from api_requests import get_players
 
 from config import RCON_HOST, RCON_PASSWORD, PORT
@@ -52,15 +51,10 @@ async def start_server(message: types.Message):
             await message.answer(f"Запуск сервера....")
             try:
                 subprocess.Popen(
-                    ["C:\\Users\\VlaDick\\Documents\\котлеты\\TGBOT3\\minecraftServer\\start.cmd"],
-                    cwd="C:\\Users\\VlaDick\\Documents\\котлеты\\TGBOT3\\minecraftServer")
+                    ["C:\\Users\\VlaDick\\Documents\\minecraft 1.21.1\\startr.bat"],
+                    cwd="C:\\Users\\VlaDick\\Documents\\minecraft 1.21.1")
                 await asyncio.sleep(20)
-                with MCRcon(RCON_HOST, RCON_PASSWORD) as mcr:
-                    MinecraftBot(RCON_HOST, 'XUY', '1.20.4')
-                    mcr.command('difficulty hard')
-                    await asyncio.sleep(3)
-                    mcr.command('gamemode spectator XUY')
-                await notice_all(message.bot, f"Сервер запущен!\nIP: 83.102.204.195:{PORT}\nВерсия: 1.20.4")
+                await notice_all(message.bot, f"Сервер запущен!\nIP: 83.102.204.195:{PORT}\nВерсия: 1.21.1")
             except Exception as e:
                 logging.error(f"Error on start server {e}")
                 await message.answer(f"Не удалось запустить сервер")
@@ -90,7 +84,7 @@ async def status_server(message: types.Message):
                 players = "\n".join(players)
                 players = '\n'.join(['-' + line for line in players.splitlines()])
                 await message.answer(
-                    f"Сервер: в сети 🟢\n" + "Игроки:\n\n" + players + "\n\n" + f"IP: 83.102.204.195:{PORT}\nВерсия: 1.20.4")
+                    f"Сервер: в сети 🟢\n" + "Игроки:\n\n" + players + "\n\n" + f"IP: 83.102.204.195:{PORT}\nВерсия: 1.21.1")
         except Exception as e:
             await message.answer("Произошла ошибка во время проверки статуса сервера")
     else:

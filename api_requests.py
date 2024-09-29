@@ -1,7 +1,7 @@
 import logging
 
 import aiohttp
-from config import ENDPOINT_URL
+from config import ENDPOINT_URL, ENDPOINT_PLUGIN_URL
 
 
 async def get_player_by_tg_id(user_id: int):
@@ -178,4 +178,29 @@ async def delete_clan(name: str):
             if response.status == 200:
                 return await response.json()
             else:
+                return None
+
+
+async def fight_place(player1: str, player2: str):
+    async with aiohttp.ClientSession() as session:
+        url = f"{ENDPOINT_PLUGIN_URL}/fightPlace"
+        async with session.post(url, data={"player1": player1, "player2": player2}) as response:
+            content = await response.text()
+            if response.status == 200:
+                return content
+            else:
+                print(
+                    f"Failed to initiate fight place for {player1} and {player2}, status: {response.status}, content: {content}")
+                return None
+
+
+async def load_vladick_house(player: str):
+    async with aiohttp.ClientSession() as session:
+        url = f"{ENDPOINT_PLUGIN_URL}/loadVladickHouse"
+        async with session.post(url, data={"player": player}) as response:
+            content = await response.text()
+            if response.status == 200:
+                return content
+            else:
+                print(f"Failed to load Vladick's house for {player}, status: {response.status}, content: {content}")
                 return None

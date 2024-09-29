@@ -8,8 +8,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.base import StorageKey
 from mcrcon import MCRcon
 
-from MinecraftBot import MinecraftBot
-from api_requests import get_player_by_tg_id, get_player_by_username, update_player_balance
+from api_requests import get_player_by_tg_id, get_player_by_username, update_player_balance, fight_place
 from config import RCON_HOST, RCON_PASSWORD
 from keyboards import players_menu_keyboard, duel_choice_keyboard, main_menu_keyboard, action_menu_keyboard, \
     look_duel_choice_keyboard, return_from_duel_keyboard
@@ -200,10 +199,12 @@ async def send_invitation(player_nickname: str, selected_player_nickname: str, b
     players = [player for player in players if player not in players_to_remove]
     for player in players:
         player_check = await get_player_by_username(player)
-        if await is_player_online(player_check["tgId"]):
+        if player_check is not None and await is_player_online(player_check["tgId"]):
             await bot.send_message(chat_id=player_check["tgId"],
                                    text=f"Администрация колизея приглашает тебя узреть смертную дуэль между ⚔ {player_nickname} и ⚔ {selected_player_nickname}❗ Не пропустите это зрелище!\n\nСогласишься ли на приглашение?🤔",
                                    reply_markup=look_duel_choice_keyboard())
+        else:
+            logging.warning(f"Player {player} not found or not online")
 
 
 async def back_from_duel(message: types.Message):
@@ -229,7 +230,6 @@ async def duel_start(message: types.Message, state: FSMContext, bot: Bot):
         selected_player_nickname = user_data.get("selected_player_nickname")
         player_nickname = user_data.get("player_nickname")
         bet_amount = user_data.get("bet_amount")
-        bot_instance = MinecraftBot.get_instance()
 
         logging.info(f"{selected_player_nickname}")
         logging.info(f"{player_nickname}")
@@ -260,123 +260,100 @@ async def duel_start(message: types.Message, state: FSMContext, bot: Bot):
             await asyncio.sleep(6)
 
             players = await get_all_players()
-            if 'XUY' in players:
-                with MCRcon(RCON_HOST, RCON_PASSWORD) as mcr:
-                    bot_instance.execute_command("/setblock 8000 287 9000 minecraft:cobblestone")
-                    bot_instance.execute_command("/tp XUY 8000 288 9000")
-                    bot_instance.execute_command("//schem load FightPlace")
-                    await asyncio.sleep(1)
-                    bot_instance.execute_command("//paste")
-                    await asyncio.sleep(1)
-                    bot_instance.execute_command(f"/tp {player_nickname} 8000 288 9000")
-                    bot_instance.execute_command(f"/tp {selected_player_nickname} 8000 288 9032")
+            with MCRcon(RCON_HOST, RCON_PASSWORD) as mcr:
+                await fight_place(player_nickname, selected_player_nickname)
 
-                    tellraw_command = 'tellraw @a {{"text":"[Администрация колизея] ","color":"dark_red","bold":true,"extra":[{{"text":"началась дуэль между ","color":"gold"}},{{"text":"{player_nickname} ","color":"green","bold":true}},{{"text":"и ","color":"gold"}},{{"text":"{selected_player_nickname}","color":"green","bold":true}},{{"text":"! Посетите это зрелище!!","color":"gold"}}]}}'.format(
-                        player_nickname=player_nickname, selected_player_nickname=selected_player_nickname)
-                    mcr.command(tellraw_command)
+                tellraw_command = 'tellraw @a {{"text":"[Администрация колизея] ","color":"dark_red","bold":true,"extra":[{{"text":"началась дуэль между ","color":"gold"}},{{"text":"{player_nickname} ","color":"green","bold":true}},{{"text":"и ","color":"gold"}},{{"text":"{selected_player_nickname}","color":"green","bold":true}},{{"text":"! Посетите это зрелище!!","color":"gold"}}]}}'.format(
+                    player_nickname=player_nickname, selected_player_nickname=selected_player_nickname)
+                mcr.command(tellraw_command)
 
-                    await send_invitation(player_nickname, selected_player_nickname, bot)
-                    bot_instance.execute_command(f"/gamemode adventure {player_nickname}")
-                    bot_instance.execute_command(f"/gamemode adventure {selected_player_nickname}")
-                    bot_instance.execute_command("/tp XUY 6918 162 12017")
-                    bot_instance.execute_command("//pos1")
-                    bot_instance.execute_command("/tp XUY 6868 130 11967")
-                    bot_instance.execute_command("//pos2")
-                    await asyncio.sleep(1)
-                    bot_instance.execute_command("//set 0")
-                    await asyncio.sleep(3)
-                    bot_instance.execute_command("/setblock 6900 149 12000 minecraft:cobblestone")
-                    bot_instance.execute_command("/tp XUY 6900 150 12000")
-                    random_number = random.randint(0, 7)
-                    bot_instance.execute_command(f"//schem load save-{random_number}")
-                    await asyncio.sleep(1)
-                    bot_instance.execute_command(f"//paste -e")
-                    bot_instance.execute_command(f"//paste -e")
-                    await asyncio.sleep(5)
+                await send_invitation(player_nickname, selected_player_nickname, bot)
 
-                    for nickname in [player_nickname, selected_player_nickname]:
-                        mcr.command(f'title {nickname} title "3"')
-                        mcr.command(f'playsound minecraft:block.bell.use ambient {nickname} ~ ~ ~ 1000000000 1')
-                    await asyncio.sleep(1)
-                    for nickname in [player_nickname, selected_player_nickname]:
-                        mcr.command(f'title {nickname} title "2"')
-                        mcr.command(f'playsound minecraft:block.bell.use ambient {nickname} ~ ~ ~ 1000000000 0.75')
-                    await asyncio.sleep(1)
-                    for nickname in [player_nickname, selected_player_nickname]:
-                        mcr.command(f'title {nickname} title "1"')
-                        mcr.command(f'playsound minecraft:block.bell.use ambient {nickname} ~ ~ ~ 1000000000 0.5')
-                    await asyncio.sleep(1)
-                    mcr.command('fill 8000 288 9004 8000 289 9004 air')
-                    mcr.command('fill 8000 288 9028 8000 289 9028 air')
-                    mcr.command(f'spawnpoint {selected_player_nickname} 6900 150 12000')
-                    mcr.command(f'spawnpoint {player_nickname} 6900 150 12000')
-                    time = 0
-                    while time <= 60:
-                        await asyncio.sleep(10)
-                        winner = await find_winner(player_id, selected_player_id, player_nickname,
-                                                   selected_player_nickname, mcr)
-                        if winner is not None:
-                            break
-                        time = time + 5
+                await asyncio.sleep(5)
+
+                for nickname in [player_nickname, selected_player_nickname]:
+                    mcr.command(f'title {nickname} title "3"')
+                    mcr.command(f'playsound minecraft:block.bell.use ambient {nickname} ~ ~ ~ 1000000000 1')
+                await asyncio.sleep(1)
+                for nickname in [player_nickname, selected_player_nickname]:
+                    mcr.command(f'title {nickname} title "2"')
+                    mcr.command(f'playsound minecraft:block.bell.use ambient {nickname} ~ ~ ~ 1000000000 0.75')
+                await asyncio.sleep(1)
+                for nickname in [player_nickname, selected_player_nickname]:
+                    mcr.command(f'title {nickname} title "1"')
+                    mcr.command(f'playsound minecraft:block.bell.use ambient {nickname} ~ ~ ~ 1000000000 0.5')
+                await asyncio.sleep(1)
+                mcr.command('fill 8000 288 9004 8000 289 9004 air')
+                mcr.command('fill 8000 288 9028 8000 289 9028 air')
+                mcr.command(f'spawnpoint {selected_player_nickname} 6900 150 12000')
+                mcr.command(f'spawnpoint {player_nickname} 6900 150 12000')
+                time = 0
+                while time <= 60:
+                    await asyncio.sleep(10)
+                    winner = await find_winner(player_id, selected_player_id, player_nickname,
+                                               selected_player_nickname, mcr)
                     if winner is not None:
-                        if winner == player_id:
-                            new_balance = player["balance"] + bet_amount
-                            await update_player_balance(new_balance, player_nickname)
-                            new_balance = selected_player["balance"] - bet_amount
-                            await update_player_balance(new_balance, selected_player_nickname)
-                            await bot.send_message(chat_id=player_id,
-                                                   text=f"🎉 Это была отличная битва! Держи свои заслуженные {bet_amount} 💵. Поздравляем с победой!")
-                            await bot.send_message(chat_id=selected_player_id,
-                                                   text=f"😢 Ты проиграл! Твои {bet_amount} 💵 теперь принадлежат {player_nickname}. Не сдавайся, удача придет в следующий раз!")
-                        if winner == selected_player_id:
-                            new_balance = selected_player["balance"] + bet_amount
-                            await update_player_balance(new_balance, selected_player_nickname)
-                            new_balance = player["balance"] - bet_amount
-                            await update_player_balance(new_balance, player_nickname)
-                            await bot.send_message(chat_id=selected_player_id,
-                                                   text=f"🎉 Это была отличная битва! Держи свои заслуженные {bet_amount} 💵. Поздравляем с победой!")
-                            await bot.send_message(chat_id=player_id,
-                                                   text=f"😢 Ты проиграл! Твои {bet_amount} 💵 теперь принадлежат {selected_player_nickname}. Не сдавайся, удача придет в следующий раз!")
-                    else:
-                        new_balance = player["balance"] - bet_amount
+                        break
+                    time = time + 5
+                if winner is not None:
+                    if winner == player_id:
+                        new_balance = player["balance"] + bet_amount
                         await update_player_balance(new_balance, player_nickname)
                         new_balance = selected_player["balance"] - bet_amount
                         await update_player_balance(new_balance, selected_player_nickname)
                         await bot.send_message(chat_id=player_id,
-                                               text=f"😢 Ты проиграл! Твои {bet_amount} 💵 теперь принадлежат администрации колизея. Вы бы ещё чай выпили!")
+                                               text=f"🎉 Это была отличная битва! Держи свои заслуженные {bet_amount} 💵. Поздравляем с победой!")
                         await bot.send_message(chat_id=selected_player_id,
-                                               text=f"😢 Ты проиграл! Твои {bet_amount} 💵 теперь принадлежат администрации колизея. Вы бы ещё чай выпили!")
+                                               text=f"😢 Ты проиграл! Твои {bet_amount} 💵 теперь принадлежат {player_nickname}. Не сдавайся, удача придет в следующий раз!")
+                    if winner == selected_player_id:
+                        new_balance = selected_player["balance"] + bet_amount
+                        await update_player_balance(new_balance, selected_player_nickname)
+                        new_balance = player["balance"] - bet_amount
+                        await update_player_balance(new_balance, player_nickname)
+                        await bot.send_message(chat_id=selected_player_id,
+                                               text=f"🎉 Это была отличная битва! Держи свои заслуженные {bet_amount} 💵. Поздравляем с победой!")
+                        await bot.send_message(chat_id=player_id,
+                                               text=f"😢 Ты проиграл! Твои {bet_amount} 💵 теперь принадлежат {selected_player_nickname}. Не сдавайся, удача придет в следующий раз!")
+                else:
+                    new_balance = player["balance"] - bet_amount
+                    await update_player_balance(new_balance, player_nickname)
+                    new_balance = selected_player["balance"] - bet_amount
+                    await update_player_balance(new_balance, selected_player_nickname)
+                    await bot.send_message(chat_id=player_id,
+                                           text=f"😢 Ты проиграл! Твои {bet_amount} 💵 теперь принадлежат администрации колизея. Вы бы ещё чай выпили!")
+                    await bot.send_message(chat_id=selected_player_id,
+                                           text=f"😢 Ты проиграл! Твои {bet_amount} 💵 теперь принадлежат администрации колизея. Вы бы ещё чай выпили!")
 
-                    hint_command_player = 'tellraw {player_name} {{"text":"[Подсказка] ","color":"yellow","bold":true,"extra":[{{"text":"Тебе нужно восстановить свой spawnpoint. Поспи на своей кровати.","color":"white"}}]}}'.format(
-                        player_name=player_nickname)
-                    hint_command_selected_player = 'tellraw {player_name} {{"text":"[Подсказка] ","color":"yellow","bold":true,"extra":[{{"text":"Тебе нужно восстановить свой spawnpoint. Поспи на своей кровати.","color":"white"}}]}}'.format(
-                        player_name=selected_player_nickname)
+                hint_command_player = 'tellraw {player_name} {{"text":"[Подсказка] ","color":"yellow","bold":true,"extra":[{{"text":"Тебе нужно восстановить свой spawnpoint. Поспи на своей кровати.","color":"white"}}]}}'.format(
+                    player_name=player_nickname)
+                hint_command_selected_player = 'tellraw {player_name} {{"text":"[Подсказка] ","color":"yellow","bold":true,"extra":[{{"text":"Тебе нужно восстановить свой spawnpoint. Поспи на своей кровати.","color":"white"}}]}}'.format(
+                    player_name=selected_player_nickname)
 
-                    mcr.command(hint_command_player)
-                    mcr.command(hint_command_selected_player)
+                mcr.command(hint_command_player)
+                mcr.command(hint_command_selected_player)
 
-                    last_location_player = await get_last_coordinate(player_id)
-                    last_location_selected_player = await get_last_coordinate(selected_player_id)
+                last_location_player = await get_last_coordinate(player_id)
+                last_location_selected_player = await get_last_coordinate(selected_player_id)
 
-                    logging.info(f"Last location for {player_nickname}: {last_location_player}")
-                    logging.info(f"Last location for {selected_player_nickname}: {last_location_selected_player}")
+                logging.info(f"Last location for {player_nickname}: {last_location_player}")
+                logging.info(f"Last location for {selected_player_nickname}: {last_location_selected_player}")
 
-                    await return_player_to_last_coordinate(player_id)
-                    await return_player_to_last_coordinate(selected_player_id)
+                await return_player_to_last_coordinate(player_id)
+                await return_player_to_last_coordinate(selected_player_id)
 
-                    await asyncio.sleep(1)
+                await asyncio.sleep(1)
 
-                    mcr.command(
-                        f'spawnpoint {player_nickname} {last_location_player[0]} {last_location_player[1]} {last_location_player[2]}')
-                    mcr.command(
-                        f'spawnpoint {selected_player_nickname} {last_location_selected_player[0]} {last_location_selected_player[1]} {last_location_selected_player[2]}')
+                mcr.command(
+                    f'spawnpoint {player_nickname} {last_location_player[0]} {last_location_player[1]} {last_location_player[2]}')
+                mcr.command(
+                    f'spawnpoint {selected_player_nickname} {last_location_selected_player[0]} {last_location_selected_player[1]} {last_location_selected_player[2]}')
 
-                    logging.info(
-                        f'spawnpoint {player_nickname} {last_location_player[0]} {last_location_player[1]} {last_location_player[2]}')
-                    logging.info(
-                        f'spawnpoint {selected_player_nickname} {last_location_selected_player[0]} {last_location_selected_player[1]} {last_location_selected_player[2]}')
+                logging.info(
+                    f'spawnpoint {player_nickname} {last_location_player[0]} {last_location_player[1]} {last_location_player[2]}')
+                logging.info(
+                    f'spawnpoint {selected_player_nickname} {last_location_selected_player[0]} {last_location_selected_player[1]} {last_location_selected_player[2]}')
 
-                    await state.clear()
+                await state.clear()
 
         else:
             await message.answer("Ты или твой оппонент не в сети.")

@@ -82,7 +82,7 @@ async def save_last_coordinate(nickname: str):
                 raise CoordinateNotFoundException("No match found in the output")
     except Exception as e:
         logging.error(f"An error occurred while saving the location: {e}")
-        raise
+        raise CoordinateNotFoundException("Не удалось сохранить координаты")
 
 
 async def return_player_to_last_coordinate(user_id: int):
